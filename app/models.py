@@ -1,4 +1,5 @@
-""" Models for risk metrics calculation inputs. """
+""" Pydantic models for the application. """
+
 from pydantic import BaseModel
 
 

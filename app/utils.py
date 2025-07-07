@@ -18,7 +18,11 @@ def calculate_risk_from_prices(prices: pd.Series | pd.DataFrame):
     mean_return = returns.mean()
     volatility = returns.std()
 
-    sharpe_ratio = mean_return / volatility
+    # Avoid division by zero
+    if volatility == 0:
+        sharpe_ratio = 999
+    else:
+        sharpe_ratio = mean_return / volatility
     drawdown = (prices / prices.cummax()) - 1
     max_drawdown = drawdown.min()
 

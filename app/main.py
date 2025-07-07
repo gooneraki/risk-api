@@ -3,7 +3,9 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from .routes import router
+from .routes import router as risk_router
+from .user_routes import router as user_router
+from .portfolio_routes import router as portfolio_router
 
 load_dotenv()
 
@@ -24,4 +26,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(router)
+app.include_router(risk_router)
+app.include_router(user_router)
+app.include_router(portfolio_router)
