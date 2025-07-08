@@ -15,8 +15,8 @@ def calculate_risk_from_prices(prices: pd.Series | pd.DataFrame):
     """ Calculate risk metrics from a series of prices. """
     returns = prices.pct_change().dropna()
 
-    mean_return = returns.mean()
-    volatility = returns.std()
+    mean_return = _safe_float(returns.mean())
+    volatility = _safe_float(returns.std())
 
     # Avoid division by zero
     if volatility == 0:
