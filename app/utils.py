@@ -27,8 +27,8 @@ def calculate_risk_from_prices(prices: pd.Series | pd.DataFrame):
     max_drawdown = drawdown.min()
 
     return {
-        "mean_return": round(_safe_float(mean_return), 4),
-        "volatility": round(_safe_float(volatility), 4),
+        "mean_return": round(mean_return, 4),
+        "volatility": round(volatility, 4),
         "sharpe_ratio": round(_safe_float(sharpe_ratio), 2),
         "max_drawdown": round(_safe_float(max_drawdown), 4)
     }
