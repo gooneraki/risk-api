@@ -4,3 +4,4 @@ venv/
 *.pyc
 *.db
 .env
+.start_local.ps1
