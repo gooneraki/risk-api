@@ -5,3 +5,4 @@ venv/
 *.db
 .env
 .start_local.ps1
+.update_versions.ps1
