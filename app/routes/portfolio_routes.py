@@ -3,9 +3,9 @@ from typing import List
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
-from .auth import get_current_user
-from .db import get_session
-from .db_models import AssetPosition, User
+from app.auth import get_current_user
+from app.db import get_session
+from app.models.db_models import AssetPosition, User
 
 router = APIRouter()
 

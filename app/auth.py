@@ -10,12 +10,10 @@ from sqlmodel import Session, select
 from starlette.status import HTTP_401_UNAUTHORIZED
 
 from app.db import get_session
-from app.db_models import User
+from app.models.db_models import User
 
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-
-if SECRET_KEY is None:
+if os.getenv("SECRET_KEY") is None:
     raise ValueError("SECRET_KEY environment variable is not set")
 
 ALGORITHM = "HS256"
@@ -24,6 +22,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+
+
+def secret_key():
+    """ Get the secret key. """
+    env_key = os.getenv("SECRET_KEY")
+    if env_key is None:
+        raise ValueError("SECRET_KEY environment variable is not set")
+    return env_key
 
 
 def verify_password(plain_password, hashed_password):
@@ -41,7 +47,7 @@ def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None
     to_encode = data.copy()
     expire = datetime.now() + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, secret_key(), algorithm=ALGORITHM)
 
 
 def get_current_user(
@@ -55,7 +61,7 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"})
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, secret_key(), algorithms=[ALGORITHM])
         username = payload.get("sub")
         if username is None:
             raise credentials_exception

@@ -3,9 +3,9 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from .routes import router as risk_router
-from .user_routes import router as user_router
-from .portfolio_routes import router as portfolio_router
+from app.routes.risk_routes import router as risk_router
+from app.routes.user_routes import router as user_router
+from app.routes.portfolio_routes import router as portfolio_router
 
 load_dotenv()
 

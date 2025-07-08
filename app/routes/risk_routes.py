@@ -2,8 +2,8 @@
 import pandas as pd
 import yfinance as yf
 from fastapi import APIRouter, HTTPException
-from .models import PriceInput, TickerInput
-from .utils import calculate_risk_from_prices
+from app.models.models import PriceInput, TickerInput
+from app.utils import calculate_risk_from_prices
 
 router = APIRouter()
 
