@@ -6,6 +6,9 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Add curl for healthcheck
+RUN apt-get update && apt-get install -y curl && apt-get clean
+
 COPY . .
 
 EXPOSE 10000

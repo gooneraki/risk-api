@@ -38,6 +38,12 @@ app.add_middleware(
 )
 
 
+@app.get("/healthz")
+def healthz():
+    """ Health check endpoint. """
+    return {"status": "ok"}
+
+
 app.include_router(risk_router)
 app.include_router(user_router)
 app.include_router(portfolio_router)
