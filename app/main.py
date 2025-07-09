@@ -16,7 +16,8 @@ ENV = os.getenv("ENV", "dev")
 if ENV == "prod":
     origins = ["https://risk-ui-nine.vercel.app"]
 else:
-    origins = ["http://localhost:5173"]
+    # [local dev, dockerized dev]
+    origins = ["http://localhost:5173", "http://localhost:3000"]
 
 
 @asynccontextmanager
