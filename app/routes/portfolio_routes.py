@@ -143,3 +143,13 @@ def search_ticker(q: str = Query(..., min_length=1, max_length=30)):
         return results[:10]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/me")
+def me(user: User = Depends(get_current_user)):
+    """ Get the current user. """
+    try:
+        return user
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error getting current user: {str(e)}") from e

@@ -55,20 +55,24 @@ def get_current_user(
         session: Session = Depends(get_session)):
     """ Get the current user from the token. """
 
-    credentials_exception = HTTPException(
-        status_code=HTTP_401_UNAUTHORIZED,
-        detail="Invalid Authentication",
-        headers={"WWW-Authenticate": "Bearer"})
-
     try:
         payload = jwt.decode(token, secret_key(), algorithms=[ALGORITHM])
         username = payload.get("sub")
         if username is None:
-            raise credentials_exception
+            raise HTTPException(
+                status_code=HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+                headers={"WWW-Authenticate": "Bearer"})
     except JWTError as exc:
-        raise credentials_exception from exc
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="Token expired",
+            headers={"WWW-Authenticate": "Bearer"}) from exc
 
     user = session.exec(select(User).where(User.username == username)).first()
     if user is None:
-        raise credentials_exception
+        raise HTTPException(
+            status_code=HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"})
     return user
