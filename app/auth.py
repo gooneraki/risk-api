@@ -1,5 +1,4 @@
 """ Authentication utilities for the application. """
-import os
 from datetime import datetime, timedelta
 from typing import Union
 from fastapi import Depends, HTTPException
@@ -9,15 +8,9 @@ from passlib.context import CryptContext
 from sqlmodel import Session, select
 from starlette.status import HTTP_401_UNAUTHORIZED
 
+from app.config import settings
 from app.db import get_session
 from app.models.db_models import User
-
-
-if os.getenv("SECRET_KEY") is None:
-    raise ValueError("SECRET_KEY environment variable is not set")
-
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -26,10 +19,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 def secret_key():
     """ Get the secret key. """
-    env_key = os.getenv("SECRET_KEY")
-    if env_key is None:
-        raise ValueError("SECRET_KEY environment variable is not set")
-    return env_key
+    if not settings.jwt_secret_key:
+        raise ValueError("JWT_SECRET_KEY environment variable is not set")
+    return settings.jwt_secret_key
 
 
 def verify_password(plain_password, hashed_password):
@@ -45,9 +37,9 @@ def hash_password(password):
 def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None):
     """ Create an access token. """
     to_encode = data.copy()
-    expire = datetime.now() + (expires_delta or timedelta(minutes=15))
+    expire = datetime.now() + (expires_delta or timedelta(minutes=30))
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, secret_key(), algorithm=ALGORITHM)
+    return jwt.encode(to_encode, secret_key(), algorithm="HS256")
 
 
 def get_current_user(
@@ -56,7 +48,7 @@ def get_current_user(
     """ Get the current user from the token. """
 
     try:
-        payload = jwt.decode(token, secret_key(), algorithms=[ALGORITHM])
+        payload = jwt.decode(token, secret_key(), algorithms=["HS256"])
         username = payload.get("sub")
         if username is None:
             raise HTTPException(

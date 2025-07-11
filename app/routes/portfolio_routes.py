@@ -3,12 +3,14 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 import yfinance as yf
+import httpx
 
-
+from app.config import settings
 from app.auth import get_current_user
 from app.db import get_session
 from app.models.db_models import AssetPosition, User
 from app.models.yfinance_models import TickerSearchReference
+from app.redis_service import redis_service
 
 router = APIRouter()
 
@@ -53,7 +55,7 @@ def get_portfolio(
 
 
 @router.post("/portfolio", response_model=AssetPosition)
-def add_position(
+async def add_position(
     position: AssetPosition,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
@@ -81,11 +83,23 @@ def add_position(
     session.add(position)
     session.commit()
     session.refresh(position)
+
+    # Publish ticker update event to Redis
+    try:
+        await redis_service.publish_ticker_update(
+            ticker=position.ticker,
+            user_id=user.id,
+            action="add"
+        )
+    except (ConnectionError, TimeoutError) as e:
+        print(f"⚠️  Failed to publish ticker update event: {e}")
+        # Don't fail the request if Redis is unavailable
+
     return position
 
 
 @router.put("/portfolio/{symbol}", response_model=AssetPosition)
-def update_position(
+async def update_position(
     symbol: str,
     quantity: float,
     user: User = Depends(get_current_user),
@@ -106,11 +120,23 @@ def update_position(
     session.add(pos)
     session.commit()
     session.refresh(pos)
+
+    # Publish ticker update event to Redis
+    try:
+        await redis_service.publish_ticker_update(
+            ticker=symbol,
+            user_id=user.id,
+            action="update"
+        )
+    except (ConnectionError, TimeoutError) as e:
+        print(f"⚠️  Failed to publish ticker update event: {e}")
+        # Don't fail the request if Redis is unavailable
+
     return pos
 
 
 @router.delete("/portfolio/{symbol}", status_code=204)
-def delete_position(
+async def delete_position(
     symbol: str,
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
@@ -125,6 +151,19 @@ def delete_position(
 
     session.delete(pos)
     session.commit()
+
+    # Publish ticker update event to Redis
+    try:
+        if user.id is not None:
+            await redis_service.publish_ticker_update(
+                ticker=symbol,
+                user_id=user.id,
+                action="delete"
+            )
+    except (ConnectionError, TimeoutError) as e:
+        print(f"⚠️  Failed to publish ticker update event: {e}")
+        # Don't fail the request if Redis is unavailable
+
     return
 
 
@@ -141,15 +180,131 @@ def search_ticker(q: str = Query(..., min_length=1, max_length=30)):
             results.append(item)
 
         return results[:10]
-    except Exception as e:
+    except (ConnectionError, TimeoutError) as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/me")
 def me(user: User = Depends(get_current_user)):
     """ Get the current user. """
+    return user
+
+
+@router.get("/redis-info")
+async def redis_info():
+    """Get Redis connection information for debugging."""
     try:
-        return user
+        info = await redis_service.get_redis_info()
+        return {
+            "redis_status": info,
+            "environment": {
+                "REDIS_HOST": settings.redis_config.host,
+                "REDIS_PORT": settings.redis_config.port,
+                "REDIS_URL": "***" if settings.redis_config.url else None
+            }
+        }
+    except (ConnectionError, TimeoutError) as e:
+        return {
+            "redis_status": {
+                "connection_status": "error",
+                "error": str(e)
+            },
+            "environment": {
+                "REDIS_HOST": settings.redis_config.host,
+                "REDIS_PORT": settings.redis_config.port,
+                "REDIS_URL": "***" if settings.redis_config.url else None
+            }
+        }
+
+
+@router.post("/trigger-price-update")
+async def trigger_price_update(request: dict):
+    """Trigger a price update for a ticker via Redis pub/sub."""
+    ticker = request.get("ticker")
+    if not ticker:
+        raise HTTPException(status_code=400, detail="Ticker is required")
+
+    ticker = ticker.upper().strip()
+
+    try:
+        # Publish ticker update event to Redis
+        await redis_service.publish_ticker_update(
+            ticker=ticker,
+            user_id=0,  # System triggered
+            action="fetch"
+        )
+
+        return {
+            "message": f"Price update triggered for {ticker}",
+            "ticker": ticker,
+            "status": "success"
+        }
+    except (ConnectionError, TimeoutError) as e:
+        print(f"⚠️  Failed to trigger price update: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Price update service unavailable",
+                "message": f"Cannot trigger price update for {ticker}. " +
+                "Redis pub/sub is unavailable.",
+                "suggestion": "Start Redis service or use /search_ticker " +
+                "to verify ticker information."
+            }
+        ) from e
+
+
+@router.get("/latest-price/{ticker}")
+async def get_latest_price(ticker: str):
+    """Get the latest price for a ticker from Redis cache or risk-worker."""
+
+    try:
+        # First try Redis cache
+        try:
+            price = await redis_service.get_latest_price(ticker)
+            if price is not None:
+                return {
+                    "ticker": ticker.upper(),
+                    "price": price,
+                    "source": "redis_cache"
+                }
+        except (ConnectionError, TimeoutError) as e:
+            print(f"⚠️  Redis cache unavailable: {e}")
+
+        # If not in cache, try to get from risk-worker
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"http://risk-worker:8000/latest-price/{ticker}")
+                if response.status_code == 200:
+                    data = response.json()
+                    # Try to cache the price for future requests
+                    try:
+                        await redis_service.set_latest_price(ticker, data["price"])
+                    except (ConnectionError, TimeoutError) as cache_e:
+                        print(f"⚠️  Could not cache price: {cache_e}")
+                    return {
+                        "ticker": ticker.upper(),
+                        "price": data["price"],
+                        "source": "risk_worker"
+                    }
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+            print(f"⚠️  Risk-worker unavailable: {e}")
+
+        # If all services are unavailable, provide helpful error message
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Price service unavailable",
+                "message": f"Cannot fetch price for {ticker.upper()}. " +
+                "Both Redis cache and risk-worker are unavailable.",
+                "suggestion": "Try using /search_ticker to verify the ticker symbol, " +
+                "or check service status."
+            }
+        )
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Error getting current user: {str(e)}") from e
+            status_code=500,
+            detail=f"Error retrieving price for {ticker}: {str(e)}"
+        ) from e

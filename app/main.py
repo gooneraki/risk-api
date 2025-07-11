@@ -1,37 +1,45 @@
 """ Main application entry point for the risk metrics API. """
 from contextlib import asynccontextmanager
-import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
+from app.config import settings
 from app.routes.risk_routes import router as risk_router
 from app.routes.user_routes import router as user_router
 from app.routes.portfolio_routes import router as portfolio_router
 from app.db import init_db
-
-load_dotenv()
-
-ENV = os.getenv("ENV", "dev")
-
-if ENV == "prod":
-    origins = ["https://risk-ui-nine.vercel.app"]
-else:
-    # [local dev, dockerized dev]
-    origins = ["http://localhost:5173", "http://localhost:3000"]
+from app.redis_service import redis_service
 
 
 @asynccontextmanager
-async def lifespan(_):
-    """ Initialize the database. """
+async def lifespan(_app: FastAPI):
+    """ Initialize the database and Redis connection. """
+    # Initialize database
     init_db()
+
+    # Initialize Redis connection
+    try:
+        await redis_service.connect()
+        print("🚀 Risk API started with Redis Pub/Sub support")
+    except Exception as e:
+        print(f"⚠️  Redis connection failed: {e}")
+        print("📝 Continuing without Redis (some features may be limited)")
+
     yield
+
+    # Cleanup
+    try:
+        await redis_service.disconnect()
+        print("🔌 Redis connection closed")
+    except Exception as e:
+        print(f"⚠️  Error closing Redis connection: {e}")
+
     print("Shutting down...")
 
 app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=settings.cors_origin,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

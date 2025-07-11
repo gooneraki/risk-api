@@ -1,9 +1,9 @@
 """ User routes for the application. """
-import os
 import re
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
+from app.config import settings
 from app.db import get_session
 
 from app.models.db_models import User
@@ -62,7 +62,7 @@ def login(form: OAuth2PasswordRequestForm = Depends(), session: Session = Depend
 @router.get("/users")
 def list_users(session: Session = Depends(get_session)):
     """ List all users. """
-    if os.getenv("ENV", "dev") == "prod":
+    if settings.env == "prod":
         raise HTTPException(
             status_code=403, detail="Not allowed in production")
     users = session.exec(select(User)).all()

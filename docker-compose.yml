@@ -1,0 +1,68 @@
+name: risk-api
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16.9-alpine
+    container_name: risk-postgres
+    env_file:
+      - .env.docker.postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U risk_user -d risk_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - risk-network
+
+  # Redis for Pub/Sub
+  redis:
+    image: redis:7-alpine
+    container_name: risk-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - risk-network
+
+  # Risk API Service
+  risk-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: risk-api
+    env_file:
+      - .env.docker.api
+    ports:
+      - "10000:10000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - risk-network
+
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  risk-network:
+    driver: bridge 

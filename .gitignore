@@ -3,6 +3,7 @@ __pycache__/
 venv/
 *.pyc
 *.db
-.env
-.start_local.ps1
+.env**
 .update_versions.ps1
+data/
+.pylintrc
