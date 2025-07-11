@@ -91,7 +91,7 @@ async def add_position(
             user_id=user.id,
             action="add"
         )
-    except (ConnectionError, TimeoutError) as e:
+    except Exception as e:
         print(f"⚠️  Failed to publish ticker update event: {e}")
         # Don't fail the request if Redis is unavailable
 
@@ -128,7 +128,7 @@ async def update_position(
             user_id=user.id,
             action="update"
         )
-    except (ConnectionError, TimeoutError) as e:
+    except Exception as e:
         print(f"⚠️  Failed to publish ticker update event: {e}")
         # Don't fail the request if Redis is unavailable
 
@@ -160,7 +160,7 @@ async def delete_position(
                 user_id=user.id,
                 action="delete"
             )
-    except (ConnectionError, TimeoutError) as e:
+    except Exception as e:
         print(f"⚠️  Failed to publish ticker update event: {e}")
         # Don't fail the request if Redis is unavailable
 
@@ -203,7 +203,7 @@ async def redis_info():
                 "REDIS_URL": "***" if settings.redis_config.url else None
             }
         }
-    except (ConnectionError, TimeoutError) as e:
+    except Exception as e:
         return {
             "redis_status": {
                 "connection_status": "error",
@@ -239,7 +239,7 @@ async def trigger_price_update(request: dict):
             "ticker": ticker,
             "status": "success"
         }
-    except (ConnectionError, TimeoutError) as e:
+    except Exception as e:
         print(f"⚠️  Failed to trigger price update: {e}")
         raise HTTPException(
             status_code=503,
@@ -267,7 +267,7 @@ async def get_latest_price(ticker: str):
                     "price": price,
                     "source": "redis_cache"
                 }
-        except (ConnectionError, TimeoutError) as e:
+        except Exception as e:
             print(f"⚠️  Redis cache unavailable: {e}")
 
         # If not in cache, try to get from risk-worker
@@ -279,7 +279,7 @@ async def get_latest_price(ticker: str):
                     # Try to cache the price for future requests
                     try:
                         await redis_service.set_latest_price(ticker, data["price"])
-                    except (ConnectionError, TimeoutError) as cache_e:
+                    except Exception as cache_e:
                         print(f"⚠️  Could not cache price: {cache_e}")
                     return {
                         "ticker": ticker.upper(),
