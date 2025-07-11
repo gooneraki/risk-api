@@ -1,10 +1,8 @@
 name: risk-api
 
 services:
-  # PostgreSQL Database
-  postgres:
+  risk-postgres:
     image: postgres:16.9-alpine
-    container_name: risk-postgres
     env_file:
       - .env.docker.postgres
     ports:
@@ -19,10 +17,8 @@ services:
     networks:
       - risk-network
 
-  # Redis for Pub/Sub
   redis:
     image: redis:7-alpine
-    container_name: risk-redis
     ports:
       - "6379:6379"
     volumes:
@@ -34,19 +30,17 @@ services:
       retries: 5
     networks:
       - risk-network
-
-  # Risk API Service
+  
   risk-api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: risk-api
     env_file:
       - .env.docker.api
     ports:
       - "10000:10000"
     depends_on:
-      postgres:
+      risk-postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -57,7 +51,6 @@ services:
       retries: 3
     networks:
       - risk-network
-
 
 volumes:
   postgres_data:
