@@ -2,6 +2,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.routes.risk_routes import router as risk_router
 from app.routes.user_routes import router as user_router
@@ -35,7 +37,15 @@ async def lifespan(_app: FastAPI):
 
     print("Shutting down...")
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    lifespan=lifespan,
+    title="Risk API",
+    description="A comprehensive risk management API",
+    version="1.0.0"
+)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,6 +54,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/")
+def root():
+    """ Root endpoint. """
+    return {"message": "Welcome to the Risk API"}
+
+
+@app.get("/favicon.ico")
+def favicon():
+    """ Favicon endpoint to serve the favicon.ico file. """
+    return FileResponse(
+        "app/static/favicon.ico",
+        media_type="image/x-icon",
+        headers={"Cache-Control": "public, max-age=3600"}
+    )
 
 
 @app.get("/healthz")
